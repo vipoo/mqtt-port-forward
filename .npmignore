@@ -1,0 +1,7 @@
+src
+scripts
+tests
+.*
+*.tgz
+/examples
+/tmp

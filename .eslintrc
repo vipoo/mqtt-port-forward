@@ -1,0 +1,10 @@
+{
+  "root": true,
+  "globals": {
+    "BigInt": false
+  },
+  "rules": {
+    "complexity": ['error', 4]
+  },
+  "extends": ["eslint-config-stickler"]
+}
