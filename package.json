@@ -1,10 +1,18 @@
 {
-  "name": "mqtt-socket-tunnel",
-  "version": "1.0.0",
-  "description": "Create a socket between an mqtt device and back office ",
+  "name": "mqtt-port-forward",
+  "version": "0.0.1",
+  "description": "Create a socket between an 2 mqtt subscribers",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "./scripts/build.sh",
+    "lint": "eslint --fix src tests",
+    "clean": "./scripts/clean.sh",
+    "pretest": "./scripts/clean.sh",
+    "test": "NODE_ENV=test mocha --require \"@babel/register\" tests/**",
+    "tst": "NODE_ENV=test mocha --require \"@babel/register\" tests/**",
+    "posttest": "eslint --fix src tests",
+    "watch": "npm-watch",
+    "prepack": "./scripts/clean.sh && ./scripts/build.sh"
   },
   "author": "Dean Netherton",
   "license": "ISC",
@@ -20,33 +28,11 @@
       "delay": 1000,
       "runOnChangeOnly": false,
       "inherit": true
-    },
-    "test": {
-      "patterns": [
-        "src",
-        "tests"
-      ],
-      "extensions": "js",
-      "quiet": true,
-      "legacyWatch": false,
-      "delay": 1000,
-      "runOnChangeOnly": false,
-      "inherit": true
     }
   },
-  "scripts": {
-    "build": "./scripts/build.sh",
-    "lint": "eslint --fix src tests",
-    "clean": "./scripts/clean.sh",
-    "pretest": "./scripts/clean.sh",
-    "test": "NODE_ENV=test mocha --require \"@babel/register\" tests/**",
-    "tst": "NODE_ENV=test mocha --require \"@babel/register\" tests/**",
-    "posttest": "eslint --fix src tests",
-    "watch": "npm-watch",
-    "prepack": "./scripts/clean.sh && ./scripts/build.sh"
-  },
   "dependencies": {
-    "core-js": "^3.0.0"
+    "core-js": "^3.0.0",
+    "debug": "^4.1.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.4.4",
@@ -65,16 +51,15 @@
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "chai-http": "^4.3.0",
-    "eslint": "^5.16.0",
-    "eslint-config-google": "^0.12.0",
+    "eslint": "^6.0.1",
+    "eslint-config-google": "^0.13.0",
     "eslint-config-stickler": "^1.0.4",
     "eslint-plugin-filenames": "^1.3.2",
     "eslint-plugin-import": "^2.17.2",
     "eslint-plugin-no-only-tests": "^2.3.0",
-    "eslint-plugin-node": "^8.0.1",
+    "eslint-plugin-node": "^9.1.0",
     "mocha": "^6.1.4",
     "npm-watch": "^0.6.0",
-    "rmfr": "^2.0.0",
     "sinon": "^7.3.2",
     "sinon-chai": "^3.3.0"
   }
