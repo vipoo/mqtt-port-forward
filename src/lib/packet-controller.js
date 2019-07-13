@@ -5,12 +5,11 @@ import {retryUntil} from './promise_helpers'
 const debug = _debug('mqtt:pf')
 
 export class PacketController {
-  static nextSocketId = 1
-
   constructor(mqttClient, topic) {
     this.openedSockets = new Map()
     this.mqttClient = mqttClient
     this.topic = topic
+    this.nextSocketId = 1
   }
 
   init(extractSocketId, portNumber, direction) {
@@ -65,6 +64,10 @@ export class PacketController {
       debug(`${socket.id}: received close signal.  Forwarding to mqtt.`)
       this.openedSockets.delete(socket.id)
     })
+  }
+
+  reset() {
+    return this[PacketCodes.Reset]()
   }
 
   [PacketCodes.Reset]() {

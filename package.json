@@ -1,7 +1,7 @@
 {
   "name": "mqtt-port-forward",
   "version": "0.0.1",
-  "description": "Create a socket between an 2 mqtt subscribers",
+  "description": "Forward a socket over mqtt topics",
   "main": "index.js",
   "scripts": {
     "build": "./scripts/build.sh",

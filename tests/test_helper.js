@@ -9,6 +9,9 @@ chai.use(sinonChai)
 
 export const expect = chai.expect
 export const subjectEach = beforeEach
+export const given = (d, fn) => context(`given ${d}`, fn)
+export const when = (d, fn) => context(`when ${d}`, fn)
+export const then = (d, fn) => it(`then ${d}`, fn)
 
 afterEach(() => sinon.restore())
 

@@ -1,5 +1,4 @@
 import net from 'net'
-import {log} from './lib/log'
 import _debug from 'debug'
 import {PacketCodes} from './lib/buffer-management'
 import {PacketController} from './lib/packet-controller'
@@ -8,7 +7,7 @@ const debug = _debug('mqtt:pf')
 
 class Controllers extends PacketController {
   connect(socket) {
-    const socketId = PacketController.nextSocketId++
+    const socketId = this.nextSocketId++
     debug(`${socketId}: starting new session`)
     socket.id = socketId
     socket.nextPacketNumber = 1
@@ -25,7 +24,7 @@ class Controllers extends PacketController {
   }
 }
 
-export async function forwardLocalPortToMqtt(mqttClient, portNumber, topic) {
+export function forwardLocalPortToMqtt(mqttClient, portNumber, topic) {
   const socketIdPattern = new RegExp(`^${topic}/tunnel/down/(\\d*)$`)
   const extractSocketId = str => parseInt(socketIdPattern.exec(str)[1])
 
@@ -36,5 +35,10 @@ export async function forwardLocalPortToMqtt(mqttClient, portNumber, topic) {
     controllers.connect(socket))
 
   server.listen(portNumber, '127.0.0.1',
-    () => log.info(`Listening on ${portNumber} to forward to mqtt topics`))
+    () => debug(`Listening on ${portNumber} to forward to mqtt topics`))
+
+  return () => {
+    server.close()
+    controllers.reset()
+  }
 }

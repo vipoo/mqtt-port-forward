@@ -75,7 +75,7 @@ Once you have created your mqttClient object, you can then invoke the `forwardMq
 ```
   import {forwardMqttToLocalPort} from 'mqtt-port-forward'
 
-  // Forward requests received on mqtt topic 'mydevice/tunnel/down/+'
+  // Forward requests received on mqtt topic 'mydevicessh/tunnel/down/+'
   forwardMqttToLocalPort(mqttClient, 22, 'mydevice')
 
 ```
@@ -86,7 +86,7 @@ Then on the client device (eg: your laptop)
   import {forwardMqttToLocalPort} from 'mqtt-port-forward'
 
   // Listen on localhost:2222 for connection requests and forward to 'mydevice/tunnel/down/+'
-  forwardLocalPortToMqtt(mqttClient, 2222, 'mydevice')
+  forwardLocalPortToMqtt(mqttClient, 2222, 'mydevicessh')
 ```
 
 You will need to ensure your 2 connections are authorised to send and received on
