@@ -1,6 +1,7 @@
 import net from 'net'
 import {log} from './lib/log'
 import _debug from 'debug'
+import {applyHeader, extractHeader} from './lib/buffer-management'
 
 const debug = _debug('mqtt:pf')
 
@@ -29,13 +30,16 @@ class Controllers {
   connect(socketId, portNumber) {
     const socket = new net.Socket()
     socket.id = socketId
+    socket.nextPacketNumber = 1
     this.openedSockets.set(socketId, socket)
 
     socket.on('data', data => {
-      debug(`${socketId}: received ${data.length} bytes from local socket.  Forwarding to mqtt`)
-      socket.pause()
+      const packetNumber = socket.nextPacketNumber++
+      debug(`${socketId}: received packet ${packetNumber}, containing ${data.length} bytes on socket`)
       debug(`${socketId}: socket paused`)
-      this.mqttClient.publish(`${this.topic}/tunnel/downstream/data/${socketId}`, data, {qos: 1})
+      socket.pause()
+      const dataWithHeader = applyHeader(data, 1, packetNumber)
+      this.mqttClient.publish(`${this.topic}/tunnel/downstream/data/${socketId}`, dataWithHeader, {qos: 1})
     })
 
     socket.on('end', () => {
@@ -73,9 +77,10 @@ class Controllers {
     this.openedSockets.delete(socketId)
   }
 
-  data(socketId, data) {
+  data(socketId, buffer) {
     this.mqttClient.publish(`${this.topic}/tunnel/downstream/ctrl/${socketId}`, 'ack')
-    debug(`${socketId}: writing ${data.length} bytes to local socket`)
+    const {data, code, packetNumber} = extractHeader(buffer)
+    debug(`${socketId}: ${code}: writing packet ${packetNumber}, containing ${data.length} bytes, to local socket`)
     this.ifSocket(socketId, s => s.write(data))
   }
 }
