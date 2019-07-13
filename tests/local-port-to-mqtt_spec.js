@@ -9,13 +9,11 @@ const connectPacket = Buffer.from([0, 0, 0, PacketCodes.Connect, 0, 0, 0, 1])
 
 const dataPacket = (content, number) => applyHeader(Buffer.from(content), PacketCodes.Data, number)
 const endPacket = number => applyHeader(Buffer.alloc(0), PacketCodes.End, number)
-const closePacket = number => applyHeader(Buffer.alloc(0), PacketCodes.Close, number)
 
 when('forwardLocalPortToMqtt is invoked', () => {
 
   let mqttClient
   let stopServer
-  //let stubEvents
   beforeEach(async () => {
     mqttClient = new EventEmitter()
     mqttClient.subscribe = sinon.stub()
