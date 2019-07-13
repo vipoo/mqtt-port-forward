@@ -1,4 +1,12 @@
 
+export const PacketCodes = Object.freeze({
+  Connect: 1,
+  Data: 2,
+  End: 3,
+  Close: 4,
+  Reset: 5
+})
+
 export function applyHeader(buffer, code, packetNumber) {
   const header = Buffer.alloc(8)
   header.writeInt32BE(code, 0)
