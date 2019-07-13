@@ -1,4 +1,7 @@
 # MQTT Port Forwarding
+-----------
+
+[![Build Status](https://travis-ci.com/vipoo/mqtt-port-forward.svg?branch=master)](https://travis-ci.com/vipoo/mqtt-port-forward)
 
 This modules provides a means to forward a tcp socket, over MQTT to another mqtt recipient
 
