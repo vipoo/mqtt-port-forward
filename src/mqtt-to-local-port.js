@@ -2,6 +2,7 @@ import net from 'net'
 import {log} from './lib/log'
 import _debug from 'debug'
 import {applyHeader, extractHeader} from './lib/buffer-management'
+import {retryUntil} from './lib/promise_helpers'
 
 const debug = _debug('mqtt:pf')
 
@@ -31,13 +32,12 @@ class Controllers {
     const socket = new net.Socket()
     socket.id = socketId
     socket.nextPacketNumber = 1
+    socket.nextIncomingPacket = 1
     this.openedSockets.set(socketId, socket)
 
     socket.on('data', data => {
       const packetNumber = socket.nextPacketNumber++
       debug(`${socketId}: received packet ${packetNumber}, containing ${data.length} bytes on socket`)
-      debug(`${socketId}: socket paused`)
-      socket.pause()
       const dataWithHeader = applyHeader(data, 1, packetNumber)
       this.mqttClient.publish(`${this.topic}/tunnel/downstream/data/${socketId}`, dataWithHeader, {qos: 1})
     })
@@ -61,8 +61,6 @@ class Controllers {
   }
 
   ack(socketId) {
-    debug(`${socketId}: socket resumed`)
-    this.ifSocket(socketId, s => s.resume())
   }
 
   end(socketId) {
@@ -80,8 +78,16 @@ class Controllers {
   data(socketId, buffer) {
     this.mqttClient.publish(`${this.topic}/tunnel/downstream/ctrl/${socketId}`, 'ack')
     const {data, code, packetNumber} = extractHeader(buffer)
-    debug(`${socketId}: ${code}: writing packet ${packetNumber}, containing ${data.length} bytes, to local socket`)
-    this.ifSocket(socketId, s => s.write(data))
+
+    this.ifSocket(socketId, async socket => {
+      await retryUntil(() => socket.nextIncomingPacket === packetNumber)
+      if (socket.nextIncomingPacket !== packetNumber)
+        throw new Error(`Expected ${socket.nextIncomingPacket} but got ${packetNumber}`)
+
+      socket.nextIncomingPacket++
+      debug(`${socketId}: ${code}: writing packet ${packetNumber}, containing ${data.length} bytes, to local socket`)
+      socket.write(data)
+    })
   }
 }
 
