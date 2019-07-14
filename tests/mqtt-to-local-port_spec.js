@@ -10,6 +10,7 @@ const connectPacket = Buffer.from([0, 0, 0, PacketCodes.Connect, 0, 0, 0, 1])
 const dataPacket = (content, number) => applyHeader(Buffer.from(content), PacketCodes.Data, number)
 const endPacket = number => applyHeader(Buffer.alloc(0), PacketCodes.End, number)
 const closePacket = number => applyHeader(Buffer.alloc(0), PacketCodes.Close, number)
+const ackPacket = number => applyHeader(Buffer.alloc(0), PacketCodes.Ack, number)
 
 when('forwardMqttToLocalPort is invoked', () => {
   let onSocketData
@@ -80,6 +81,9 @@ when('forwardMqttToLocalPort is invoked', () => {
 
     when('mqtt topic receives a data packet', () => {
       beforeEach(() => mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah', 2)))
+
+      then('an ack packet is returned', () =>
+        eventually(() => expect(mqttClient.publish).to.have.been.calledWith('testtopic/tunnel/down/1', ackPacket(2))))
 
       then('the data is received on the socket', () =>
         eventually(() => expect(onSocketData).to.have.been.calledWith(Buffer.from('blah'))))

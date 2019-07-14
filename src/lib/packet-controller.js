@@ -10,24 +10,37 @@ export class PacketController {
     this.openedSockets = new Map()
     this.mqttClient = mqttClient
     this.topic = topic
+    this.packetsWaitingAck = new Map()
   }
 
   init(extractSocketId, portNumber, direction) {
     this.mqttClient.on('message', (incomingTopic, buffer) => {
       const socketId = extractSocketId(incomingTopic)
       const {data, code, packetNumber} = extractHeader(buffer)
+      if (code !== PacketCodes.Ack)
+        this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
+          applyHeader(Buffer.alloc(0), PacketCodes.Ack, packetNumber), {qos: 1})
+
       this[code](socketId, data, packetNumber, portNumber)
     })
 
     const invertDirection = direction === 'down' ? 'up' : 'down'
     this.mqttClient.subscribe(`${this.topic}/tunnel/${direction}/+`, {qos: 1})
-    this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/0`, applyHeader(Buffer.alloc(0), PacketCodes.Reset, 0))
+    this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/0`, applyHeader(Buffer.alloc(0), PacketCodes.Reset, 0), {qos: 1})
   }
 
   publishToMqtt(socket, code, data = Buffer.alloc(0)) {
     const packetNumber = socket.nextPacketNumber++
     const dataWithHeader = applyHeader(data, code, packetNumber)
-    this.mqttClient.publish(socket.dataTopic, dataWithHeader, {qos: 1})
+    const writeToMqtt = () => {
+      debug(`${socket.id}: Sending data ${packetNumber}, code: ${code}`)
+      this.mqttClient.publish(socket.dataTopic, dataWithHeader, {qos: 1})
+    }
+
+    writeToMqtt()
+    const handle = setTimeout(writeToMqtt, 3000)
+    this.packetsWaitingAck.set(packetNumber, handle)
+
     return packetNumber
   }
 
@@ -104,5 +117,12 @@ export class PacketController {
       debug(`${socketId}: writing data packet ${packetNumber}, containing ${data.length} bytes, to local socket`)
       socket.write(data)
     })
+  }
+
+  [PacketCodes.Ack](socketId, data, packetNumber) {
+    debug(`${socketId}: received ack for data packet ${packetNumber}`)
+    const timerHandler = this.packetsWaitingAck.get(packetNumber)
+    clearTimeout(timerHandler)
+    this.packetsWaitingAck.delete(packetNumber)
   }
 }

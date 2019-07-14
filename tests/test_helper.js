@@ -13,6 +13,8 @@ export const given = (d, fn) => context(`given ${d}`, fn)
 export const when = (d, fn) => context(`when ${d}`, fn)
 export const then = (d, fn) => it(`then ${d}`, fn)
 
+then.only = it.only // eslint-disable-line
+
 afterEach(() => sinon.restore())
 
 const _setTimeout = setTimeout //capture non fake timer
