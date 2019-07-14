@@ -21,12 +21,24 @@ class Controllers extends PacketController {
   }
 }
 
-export function forwardMqttToLocalPort(mqttClient, portNumber, topic) {
+let timeoutHandle
+function rescheuleTimeoutMonitor(controllers, timeoutPeriod) {
+  clearTimeout(timeoutHandle)
+  timeoutHandle = setTimeout(() => {
+    info('Timeout due to no mqtt packets received.  Terminating all socket connections')
+    controllers.reset()
+  }, timeoutPeriod)
+}
+
+const twoMinutes = 120000
+export function forwardMqttToLocalPort(mqttClient, portNumber, topic, timeoutPeriod = twoMinutes) {
   const socketIdPattern = new RegExp(`^${topic}/tunnel/up/(.*)$`)
   const extractSocketId = str => socketIdPattern.exec(str)[1]
 
   const controllers = new Controllers(mqttClient, topic)
   controllers.init(extractSocketId, portNumber, 'up')
+
+  mqttClient.on('packetreceive', ({cmd}) => cmd === 'publish' ? rescheuleTimeoutMonitor(controllers, timeoutPeriod) : null)
 
   mqttClient.on('connect', () => info(`Listening on mqtt topics ${topic}/tunnel/* to forward to port ${portNumber}`))
 }

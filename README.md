@@ -38,7 +38,7 @@ The package exports 2 functions
 * [forwardMqttToLocalPort()](#forwardmqtttolocalportmqttclient-portnumber-topic)
 * [forwardLocalPortToMqtt()](#forwardlocalporttomqttmqttclient-portnumber-topic)
 
-### forwardMqttToLocalPort(mqttClient, portNumber, topic)
+### forwardMqttToLocalPort(mqttClient, portNumber, topic, timeoutPeriod = 120000)
 
 Subscribes on the supplied `mqttClient` object, to the topic pattern `<topic>/tunnel/up/+`.
 
@@ -49,6 +49,8 @@ Once connection is establish, data received on topic `<topic>/tunnel/up/+` will 
 the socket, and data sent from the socket will be published to mqtt topic `<topic>/tunnel/down/+`
 
 If the `mqttClient` object is closed, then any opened sockets will be closed.
+
+If no traffic is received on the mqtt topic for `timeoutPeriod`, then all sockets will be closed.
 
 ### forwardLocalPortToMqtt(mqttClient, portNumber, topic)
 
