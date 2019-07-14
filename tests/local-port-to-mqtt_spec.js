@@ -3,6 +3,7 @@ import {forwardLocalPortToMqtt} from '../src'
 import EventEmitter from 'events'
 import net from 'net'
 import {PacketCodes, applyHeader} from '../src/lib/buffer-management'
+import * as idGeneratorModule from '../src/lib/id-generator'
 
 const resetPacket = Buffer.from([0, 0, 0, PacketCodes.Reset, 0, 0, 0, 0])
 const connectPacket = Buffer.from([0, 0, 0, PacketCodes.Connect, 0, 0, 0, 1])
@@ -15,6 +16,7 @@ when('forwardLocalPortToMqtt is invoked', () => {
   let mqttClient
   let stopServer
   beforeEach(async () => {
+    sinon.stub(idGeneratorModule, 'generateId').returns(1)
     mqttClient = new EventEmitter()
     mqttClient.subscribe = sinon.stub()
     mqttClient.publish = sinon.stub()

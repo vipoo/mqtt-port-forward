@@ -2,19 +2,19 @@ import net from 'net'
 import _debug from 'debug'
 import {PacketCodes} from './lib/buffer-management'
 import {PacketController} from './lib/packet-controller'
+import {generateId} from './lib/id-generator'
 
 const info = _debug('mqtt:pf:info')
 
 class Controllers extends PacketController {
   connect(socket) {
-    const socketId = this.nextSocketId++
+    const socketId = generateId()
     info(`${socketId}: starting new session`)
     socket.id = socketId
     socket.nextPacketNumber = 1
     socket.nextIncomingPacket = 1
     this.openedSockets.set(socketId, socket)
     socket.dataTopic = `${this.topic}/tunnel/up/${socketId}`
-
     this.publishToMqtt(socket, PacketCodes.Connect)
     this.manageSocketEvents(socket)
   }
@@ -25,8 +25,8 @@ class Controllers extends PacketController {
 }
 
 export function forwardLocalPortToMqtt(mqttClient, portNumber, topic) {
-  const socketIdPattern = new RegExp(`^${topic}/tunnel/down/(\\d*)$`)
-  const extractSocketId = str => parseInt(socketIdPattern.exec(str)[1])
+  const socketIdPattern = new RegExp(`^${topic}/tunnel/down/(.*)$`)
+  const extractSocketId = str => socketIdPattern.exec(str)[1]
 
   const controllers = new Controllers(mqttClient, topic)
   controllers.init(extractSocketId, portNumber, 'down')

@@ -6,13 +6,13 @@ module.exports = api => {
       [
         '@babel/plugin-proposal-class-properties',
         {
-          'loose': true
+          loose: true
         }
       ],
       [
         '@babel/plugin-proposal-pipeline-operator',
         {
-          'proposal': 'minimal'
+          proposal: 'minimal'
         }
       ],
       [
@@ -29,16 +29,19 @@ module.exports = api => {
       ],
       [
         '@babel/plugin-proposal-throw-expressions'
+      ],
+      [
+        '@babel/plugin-syntax-bigint'
       ]
     ],
-    'presets': [
+    presets: [
       [
         '@babel/preset-env',
         {
-          'corejs': 3,
-          'useBuiltIns': 'usage',
-          'targets': {
-            'node': 'current'
+          corejs: 3,
+          useBuiltIns: 'usage',
+          targets: {
+            node: 'current'
           }
         }
       ]

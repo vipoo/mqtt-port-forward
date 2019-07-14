@@ -10,7 +10,6 @@ export class PacketController {
     this.openedSockets = new Map()
     this.mqttClient = mqttClient
     this.topic = topic
-    this.nextSocketId = 1
   }
 
   init(extractSocketId, portNumber, direction) {
@@ -75,8 +74,10 @@ export class PacketController {
   [PacketCodes.Reset]() {
     info('Received reset signal')
 
-    for (const s of this.openedSockets.values())
+    for (const s of this.openedSockets.values()) {
+      s.end()
       s.destroy()
+    }
 
     this.openedSockets.clear()
   }

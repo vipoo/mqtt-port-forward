@@ -22,10 +22,10 @@ class Controllers extends PacketController {
 }
 
 export function forwardMqttToLocalPort(mqttClient, portNumber, topic) {
-  const socketIdPattern = new RegExp(`^${topic}/tunnel/up/(\\d*)$`)
-  const extractSocketId = str => parseInt(socketIdPattern.exec(str)[1])
+  const socketIdPattern = new RegExp(`^${topic}/tunnel/up/(.*)$`)
+  const extractSocketId = str => socketIdPattern.exec(str)[1]
 
-  const controllers = new Controllers(mqttClient, topic, extractSocketId, portNumber)
+  const controllers = new Controllers(mqttClient, topic)
   controllers.init(extractSocketId, portNumber, 'up')
 
   mqttClient.on('connect', () => info(`Listening on mqtt topics ${topic}/tunnel/* to forward to port ${portNumber}`))
