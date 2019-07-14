@@ -7,12 +7,12 @@
     "build": "./scripts/build.sh",
     "lint": "eslint --fix src tests",
     "clean": "./scripts/clean.sh",
-    "pretest": "./scripts/clean.sh",
+    "pretest": "npm --silent audit && ./scripts/clean.sh",
     "test": "NODE_ENV=test mocha --require \"@babel/register\" tests/**",
     "tst": "NODE_ENV=test mocha --require \"@babel/register\" tests/**",
     "posttest": "eslint --fix src tests",
     "watch": "npm-watch",
-    "prepack": "./scripts/clean.sh && ./scripts/build.sh"
+    "prepack": "npm --silent audit && ./scripts/clean.sh && ./scripts/build.sh"
   },
   "author": "Dean Netherton",
   "license": "ISC",
