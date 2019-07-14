@@ -12,7 +12,6 @@ const endPacket = number => applyHeader(Buffer.alloc(0), PacketCodes.End, number
 const closePacket = number => applyHeader(Buffer.alloc(0), PacketCodes.Close, number)
 
 when('forwardMqttToLocalPort is invoked', () => {
-
   let onSocketData
   let onSocketEnd
   let onSocketClose
@@ -20,8 +19,10 @@ when('forwardMqttToLocalPort is invoked', () => {
   let mqttClient
   let capturedSockets
   let socketCreated
+  let data
 
   beforeEach(() => {
+    data = Buffer.alloc(0)
     capturedSockets = []
     onSocketData = sinon.stub()
     onSocketEnd = sinon.stub()
@@ -35,6 +36,7 @@ when('forwardMqttToLocalPort is invoked', () => {
     server = net.createServer({allowHalfOpen: true}, socket => {
       socketCreated()
       capturedSockets.push(socket)
+      socket.on('data', d => data = Buffer.concat([data, d]))
       socket.on('data', onSocketData)
       socket.on('end', onSocketEnd)
       socket.on('close', onSocketClose)
@@ -56,6 +58,25 @@ when('forwardMqttToLocalPort is invoked', () => {
 
     then('a socket connection has been established', () =>
       eventually(() => expect(socketCreated).to.have.been.calledOnce))
+
+    when('data is received on the topic', () => {
+      beforeEach(() => {
+        capturedSockets[0].write('some - data')
+      })
+
+      then('data is sent to mqtt topic', () =>
+        eventually(() => expect(mqttClient.publish).to.have.been.calledWith('testtopic/tunnel/down/1', dataPacket('some - data', 1))))
+    })
+
+    when('data is received out of order', () => {
+      beforeEach(() => {
+        mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah-3', 3))
+        mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah-2', 2))
+      })
+
+      then('the data is sent to socket in correct order', async () =>
+        eventually(() => expect(data.toString()).to.eq('blah-2blah-3')))
+    })
 
     when('mqtt topic receives a data packet', () => {
       beforeEach(() => mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah', 2)))
