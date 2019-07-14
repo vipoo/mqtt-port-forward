@@ -8,8 +8,6 @@ This modules provides a means to forward a tcp socket, over MQTT to another mqtt
 It can be integrated into your mqtt iot devices, to allow estabishing a secure ssh connection
 from your support laptop to a specific remote iot device.
 
-TODO: Added travis widgets
-
 ## Table of Contents
 
 - [Install](#install)
