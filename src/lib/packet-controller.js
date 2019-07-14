@@ -3,6 +3,7 @@ import {PacketCodes, extractHeader, applyHeader} from './buffer-management'
 import {retryUntil} from './promise_helpers'
 
 const debug = _debug('mqtt:pf')
+const info = _debug('mqtt:pf:info')
 
 export class PacketController {
   constructor(mqttClient, topic) {
@@ -55,6 +56,7 @@ export class PacketController {
 
     socket.on('end', () => {
       this.publishToMqtt(socket, PacketCodes.End)
+      info(`${socket.id}: session ended.`)
       debug(`${socket.id}: received end signal.  Forwarding to mqtt.`)
       this.openedSockets.delete(socket.id)
     })
@@ -71,7 +73,7 @@ export class PacketController {
   }
 
   [PacketCodes.Reset]() {
-    debug('Received reset signal')
+    info('Received reset signal')
 
     for (const s of this.openedSockets.values())
       s.destroy()
@@ -90,6 +92,7 @@ export class PacketController {
   [PacketCodes.Close](socketId, data, packetNumber) {
     this.syncPackets(socketId, packetNumber, socket => {
       debug(`${socketId}: socket close`)
+      info(`${socket.id}: session ended.`)
       socket.destroy()
       this.openedSockets.delete(socketId)
     })

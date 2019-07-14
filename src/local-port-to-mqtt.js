@@ -3,12 +3,12 @@ import _debug from 'debug'
 import {PacketCodes} from './lib/buffer-management'
 import {PacketController} from './lib/packet-controller'
 
-const debug = _debug('mqtt:pf')
+const info = _debug('mqtt:pf:info')
 
 class Controllers extends PacketController {
   connect(socket) {
     const socketId = this.nextSocketId++
-    debug(`${socketId}: starting new session`)
+    info(`${socketId}: starting new session`)
     socket.id = socketId
     socket.nextPacketNumber = 1
     socket.nextIncomingPacket = 1
@@ -35,7 +35,7 @@ export function forwardLocalPortToMqtt(mqttClient, portNumber, topic) {
     controllers.connect(socket))
 
   server.listen(portNumber, '127.0.0.1',
-    () => debug(`Listening on ${portNumber} to forward to mqtt topics`))
+    () => info(`Listening on ${portNumber} to forward to mqtt topics`))
 
   return () => {
     server.close()
