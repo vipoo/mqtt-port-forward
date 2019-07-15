@@ -21,6 +21,7 @@ when('forwardMqttToLocalPort is invoked', () => {
   let capturedSockets
   let socketCreated
   let data
+  let clock
 
   beforeEach(() => {
     data = Buffer.alloc(0)
@@ -32,6 +33,9 @@ when('forwardMqttToLocalPort is invoked', () => {
     mqttClient = new EventEmitter()
     mqttClient.subscribe = sinon.stub()
     mqttClient.publish = sinon.stub()
+
+    clock = sinon.useFakeTimers()
+
     forwardMqttToLocalPort(mqttClient, 14567, 'testtopic')
 
     server = net.createServer({allowHalfOpen: true}, socket => {
@@ -47,6 +51,7 @@ when('forwardMqttToLocalPort is invoked', () => {
   })
 
   afterEach(() => {
+    clock.restore()
     server.close()
     capturedSockets.forEach(s => s.destroy())
   })
@@ -67,10 +72,21 @@ when('forwardMqttToLocalPort is invoked', () => {
 
       then('data is sent to mqtt topic', () =>
         eventually(() => expect(mqttClient.publish).to.have.been.calledWith('testtopic/tunnel/down/1', dataPacket('some - data', 1))))
+
+      when('no ack is recieved after some time', () => {
+        then('the packet is resent', () => {
+          return eventually(async () => {
+            await expect(mqttClient.publish.getCall(2).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+            clock.tick(5000)
+            await expect(mqttClient.publish.getCall(3).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+          })
+        })
+      })
     })
 
     when('data is received out of order', () => {
       beforeEach(() => {
+        clock.restore()
         mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah-3', 3))
         mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah-2', 2))
       })
