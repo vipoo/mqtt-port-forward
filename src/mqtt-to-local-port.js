@@ -18,6 +18,7 @@ class Controllers extends PacketController {
 
     info(`${socketId}: out Establishing connection to local port ${portNumber}`)
     socket.connect(portNumber, '127.0.0.1')
+    this.rescheudleSocketTimeout(socketId)
   }
 }
 

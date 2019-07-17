@@ -70,26 +70,37 @@ when('forwardMqttToLocalPort is invoked', () => {
       then('data is sent to mqtt topic', () =>
         eventually(() => expect(mqttClient.publish).to.have.been.calledWith('testtopic/tunnel/down/1', dataPacket('some - data', 1))))
 
+      when('an ack is received', () => {
+        beforeEach(() => mqttClient.emit('message', 'testtopic/tunnel/up/1', ackPacket(1)))
+
+        then('the packet is not resent', () => {
+          expect(mqttClient.publish.getCall(1).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+          clock.tick(5000)
+          expect(mqttClient.publish).to.be.calledTwice
+        })
+      })
+
       when('no ack is recieved after some time', () => {
         then('the packet is resent', () => {
-          return eventually(async () => {
-            await expect(mqttClient.publish.getCall(1).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
-            clock.tick(5000)
-            await expect(mqttClient.publish.getCall(2).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
-          })
+          expect(mqttClient.publish.getCall(1).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+          clock.tick(5000)
+          expect(mqttClient.publish.getCall(2).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+          expect(mqttClient.publish).to.be.calledThrice
         })
       })
     })
 
     when('data is received out of order', () => {
       beforeEach(() => {
-        clock.restore()
         mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah-3', 3))
         mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah-2', 2))
       })
 
-      then('the data is sent to socket in correct order', async () =>
-        eventually(() => expect(data.toString()).to.eq('blah-2blah-3')))
+      then('the data is sent to socket in correct order', () =>
+        eventually(() => {
+          clock.tick(5000)
+          expect(data.toString()).to.eq('blah-2blah-3')
+        }))
     })
 
     when('mqtt topic receives a data packet', () => {
@@ -100,6 +111,13 @@ when('forwardMqttToLocalPort is invoked', () => {
 
       then('the data is received on the socket', () =>
         eventually(() => expect(onSocketData).to.have.been.calledWith(Buffer.from('blah'))))
+
+      when('no data is received on a mqtt topic for a period', () => {
+        then('the socket is timed out and closed', () => {
+          clock.tick(120000)
+          return eventually(() => expect(onSocketEnd).to.have.been.calledOnce)
+        })
+      })
 
       when('mqtt topic receives an end signal', () => {
         beforeEach(() => mqttClient.emit('message', 'testtopic/tunnel/up/1', endPacket(3)))
