@@ -16,8 +16,7 @@ class Controllers extends PacketController {
     this.openedSockets.set(socketId, socket)
     socket.dataTopic = `${this.topic}/tunnel/up/${socketId}`
     this.publishToMqtt(socket, PacketCodes.Connect)
-    this.manageSocketEvents(socket)
-    this.rescheudleSocketTimeout(socketId)
+    this.manageSocketEvents(socket, socketId)
   }
 
   [PacketCodes.Connect]() {

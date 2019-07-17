@@ -13,7 +13,6 @@ export class PacketController {
     this.openedSockets = new Map()
     this.mqttClient = mqttClient
     this.topic = topic
-    this.packetsWaitingAck = new Map()
     this.direction = direction
   }
 
@@ -44,6 +43,7 @@ export class PacketController {
       socket.destroy()
       this.openedSockets.delete(socketId)
     }, mqttTimeout)
+    return socket
   }
 
   publishToMqtt(socket, code, data = Buffer.alloc(0)) {
@@ -56,7 +56,10 @@ export class PacketController {
 
     writeToMqtt()
     const handle = setTimeout(writeToMqtt, resentPeriod)
-    this.packetsWaitingAck.set(packetNumber, handle)
+
+    if (!socket.packetsWaitingAck)
+      socket.packetsWaitingAck = new Map()
+    socket.packetsWaitingAck.set(packetNumber, handle)
 
     return packetNumber
   }
@@ -76,7 +79,10 @@ export class PacketController {
     fn(socket)
   }
 
-  manageSocketEvents(socket) {
+  manageSocketEvents(socket, socketId) {
+    socket.id = socketId
+    this.rescheudleSocketTimeout(socketId)
+
     socket.on('data', data => {
       debug(`${this.direction} ${socket.id}: received packet ${socket.nextPacketNumber}, containing ${data.length} bytes on socket`)
       this.publishToMqtt(socket, PacketCodes.Data, data)
@@ -139,10 +145,12 @@ export class PacketController {
   }
 
   [PacketCodes.Ack](socketId, data, packetNumber) {
-    this.rescheudleSocketTimeout(socketId)
+    const socket = this.rescheudleSocketTimeout(socketId)
     debug(`${this.direction} ${socketId}: received ack for data packet ${packetNumber}`)
-    const timerHandler = this.packetsWaitingAck.get(packetNumber)
-    clearTimeout(timerHandler)
-    this.packetsWaitingAck.delete(packetNumber)
+    if (socket) {
+      const timerHandler = socket.packetsWaitingAck.get(packetNumber)
+      clearTimeout(timerHandler)
+      socket.packetsWaitingAck.delete(packetNumber)
+    }
   }
 }
