@@ -6,14 +6,15 @@ const debug = _debug('mqtt:pf')
 const info = _debug('mqtt:pf:info')
 
 export class PacketController {
-  constructor(mqttClient, topic) {
+  constructor(mqttClient, topic, direction) {
     this.openedSockets = new Map()
     this.mqttClient = mqttClient
     this.topic = topic
     this.packetsWaitingAck = new Map()
+    this.direction = direction
   }
 
-  init(extractSocketId, portNumber, direction) {
+  init(extractSocketId, portNumber) {
     this.mqttClient.on('message', (incomingTopic, buffer) => {
       const socketId = extractSocketId(incomingTopic)
       const {data, code, packetNumber} = extractHeader(buffer)
@@ -24,32 +25,31 @@ export class PacketController {
       this[code](socketId, data, packetNumber, portNumber)
     })
 
-    const invertDirection = direction === 'down' ? 'up' : 'down'
-    this.mqttClient.subscribe(`${this.topic}/tunnel/${direction}/+`, {qos: 1})
-    this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/0`, applyHeader(Buffer.alloc(0), PacketCodes.Reset, 0), {qos: 1})
+    const invertDirection = this.direction === 'down' ? 'up' : 'down'
+    debug(`${this.direction}: subscribing to ${this.topic}/tunnel/${this.direction}/+`)
+    this.mqttClient.subscribe(`${this.topic}/tunnel/${this.direction}/+`, {qos: 1})
   }
 
   publishToMqtt(socket, code, data = Buffer.alloc(0)) {
     const packetNumber = socket.nextPacketNumber++
     const dataWithHeader = applyHeader(data, code, packetNumber)
     const writeToMqtt = () => {
-      debug(`${socket.id}: Sending data ${packetNumber}, code: ${code}`)
+      debug(`${this.direction} ${socket.id}: Sending data ${packetNumber}, code: ${code} to topic ${socket.dataTopic}`)
       this.mqttClient.publish(socket.dataTopic, dataWithHeader, {qos: 1})
     }
 
     writeToMqtt()
-    const handle = setTimeout(writeToMqtt, 3000)
+    const handle = setTimeout(writeToMqtt, 1000)
     this.packetsWaitingAck.set(packetNumber, handle)
 
     return packetNumber
   }
 
   async syncPackets(socketId, packetNumber, fn) {
+    await retryUntil(() => this.openedSockets.has(socketId))
     const socket = this.openedSockets.get(socketId)
-    if (!socket)
-      return
 
-    if (socket.nextIncomingPacket > packetNumber)
+    if (!socket || socket.nextIncomingPacket > packetNumber)
       return // old packet - ignore must be a repeat
 
     await retryUntil(() => socket.nextIncomingPacket === packetNumber)
@@ -62,31 +62,26 @@ export class PacketController {
 
   manageSocketEvents(socket) {
     socket.on('data', data => {
-      const packetNumber = this.publishToMqtt(socket, PacketCodes.Data, data)
-      debug(`${socket.id}: received packet ${packetNumber}, containing ${data.length} bytes on socket`)
+      debug(`${this.direction} ${socket.id}: received packet ${socket.nextPacketNumber}, containing ${data.length} bytes on socket`)
+      this.publishToMqtt(socket, PacketCodes.Data, data)
     })
 
     socket.on('end', () => {
       this.publishToMqtt(socket, PacketCodes.End)
-      info(`${socket.id}: session ended.`)
-      debug(`${socket.id}: received end signal.  Forwarding to mqtt.`)
+      info(`${this.direction} ${socket.id}: session ended.`)
+      debug(`${this.direction} ${socket.id}: received end signal.  Forwarding to mqtt.`)
       this.openedSockets.delete(socket.id)
     })
 
     socket.on('close', () => {
       this.publishToMqtt(socket, PacketCodes.Close)
-      debug(`${socket.id}: received close signal.  Forwarding to mqtt.`)
+      debug(`${this.direction} ${socket.id}: received close signal.  Forwarding to mqtt.`)
       this.openedSockets.delete(socket.id)
     })
   }
 
   reset() {
-    return this[PacketCodes.Reset]()
-  }
-
-  [PacketCodes.Reset]() {
-    info('Received reset signal')
-
+    debug(`${this.direction} Closing all sockets`)
     for (const s of this.openedSockets.values()) {
       s.end()
       s.destroy()
@@ -97,7 +92,7 @@ export class PacketController {
 
   [PacketCodes.End](socketId, data, packetNumber) {
     this.syncPackets(socketId, packetNumber, socket => {
-      debug(`${socketId}: socket end`)
+      debug(`${this.direction} ${socketId}: socket end`)
       socket.end()
       this.openedSockets.delete(socketId)
     })
@@ -105,22 +100,23 @@ export class PacketController {
 
   [PacketCodes.Close](socketId, data, packetNumber) {
     this.syncPackets(socketId, packetNumber, socket => {
-      debug(`${socketId}: socket close`)
-      info(`${socket.id}: session ended.`)
+      debug(`${this.direction} ${socketId}: socket close`)
+      info(`${this.direction} ${socket.id}: session ended.`)
       socket.destroy()
       this.openedSockets.delete(socketId)
     })
   }
 
   [PacketCodes.Data](socketId, data, packetNumber) {
+    debug(`${this.direction} ${socketId}: received data packed ${packetNumber} containing ${data.length} bytes`)
     this.syncPackets(socketId, packetNumber, socket => {
-      debug(`${socketId}: writing data packet ${packetNumber}, containing ${data.length} bytes, to local socket`)
+      debug(`${this.direction} ${socketId}: writing data packet ${packetNumber}, containing ${data.length} bytes, to local socket`)
       socket.write(data)
     })
   }
 
   [PacketCodes.Ack](socketId, data, packetNumber) {
-    debug(`${socketId}: received ack for data packet ${packetNumber}`)
+    debug(`${this.direction} ${socketId}: received ack for data packet ${packetNumber}`)
     const timerHandler = this.packetsWaitingAck.get(packetNumber)
     clearTimeout(timerHandler)
     this.packetsWaitingAck.delete(packetNumber)

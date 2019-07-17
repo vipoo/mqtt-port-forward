@@ -17,6 +17,20 @@ then.only = it.only // eslint-disable-line
 
 afterEach(() => sinon.restore())
 
+before.withTimeout = (t) => {
+  return b => before(function() {
+    this.timeout(t)
+    return b()
+  })
+}
+
+after.withTimeout = (t) => {
+  return b => after(function() {
+    this.timeout(t)
+    return b()
+  })
+}
+
 const _setTimeout = setTimeout //capture non fake timer
 const _clearTimeout = clearTimeout
 export const delay = period => new Promise(res => _setTimeout(res, period))
@@ -44,7 +58,7 @@ chai.Assertion.addProperty('pending', async function() {
     return new chai.Assertion(state).to.eq('pending')
 })
 
-export async function eventually(fn, timeout = 1900) {
+export async function eventually(fn, timeout = 3000) {
   let lastError = null
   let timedOut = false
   const timer = _setTimeout(() => timedOut = true, timeout)
@@ -70,3 +84,4 @@ export function fakeTimer() {
   }
   return sinon.useFakeTimers()
 }
+

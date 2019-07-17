@@ -4,7 +4,6 @@ import EventEmitter from 'events'
 import net from 'net'
 import {PacketCodes, applyHeader} from '../src/lib/buffer-management'
 
-const resetPacket = Buffer.from([0, 0, 0, PacketCodes.Reset, 0, 0, 0, 0])
 const connectPacket = Buffer.from([0, 0, 0, PacketCodes.Connect, 0, 0, 0, 1])
 
 const dataPacket = (content, number) => applyHeader(Buffer.from(content), PacketCodes.Data, number)
@@ -23,7 +22,7 @@ when('forwardMqttToLocalPort is invoked', () => {
   let data
   let clock
 
-  beforeEach(() => {
+  beforeEach(async () => {
     data = Buffer.alloc(0)
     capturedSockets = []
     onSocketData = sinon.stub()
@@ -36,7 +35,9 @@ when('forwardMqttToLocalPort is invoked', () => {
 
     clock = sinon.useFakeTimers()
 
-    forwardMqttToLocalPort(mqttClient, 14567, 'testtopic')
+    const p = forwardMqttToLocalPort(mqttClient, 14567, 'testtopic')
+    mqttClient.emit('connect')
+    await p
 
     server = net.createServer({allowHalfOpen: true}, socket => {
       socketCreated()
@@ -47,7 +48,6 @@ when('forwardMqttToLocalPort is invoked', () => {
       socket.on('close', onSocketClose)
     })
     server.listen(14567, '127.0.0.1', () => {})
-
   })
 
   afterEach(() => {
@@ -55,9 +55,6 @@ when('forwardMqttToLocalPort is invoked', () => {
     server.close()
     capturedSockets.forEach(s => s.destroy())
   })
-
-  then('a reset signal is sent to the mqtt topic', () =>
-    expect(mqttClient.publish).to.have.been.calledWith('testtopic/tunnel/down/0', resetPacket))
 
   when('mqtt topic receives a connection message', () => {
     beforeEach(() => mqttClient.emit('message', 'testtopic/tunnel/up/1', connectPacket))
@@ -76,9 +73,9 @@ when('forwardMqttToLocalPort is invoked', () => {
       when('no ack is recieved after some time', () => {
         then('the packet is resent', () => {
           return eventually(async () => {
-            await expect(mqttClient.publish.getCall(2).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+            await expect(mqttClient.publish.getCall(1).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
             clock.tick(5000)
-            await expect(mqttClient.publish.getCall(3).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+            await expect(mqttClient.publish.getCall(2).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
           })
         })
       })

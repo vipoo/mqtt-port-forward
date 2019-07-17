@@ -24,18 +24,21 @@ class Controllers extends PacketController {
   }
 }
 
-export function forwardLocalPortToMqtt(mqttClient, portNumber, topic) {
+export async function forwardLocalPortToMqtt(mqttClient, portNumber, topic) {
   const socketIdPattern = new RegExp(`^${topic}/tunnel/down/(.*)$`)
   const extractSocketId = str => socketIdPattern.exec(str)[1]
 
-  const controllers = new Controllers(mqttClient, topic)
-  controllers.init(extractSocketId, portNumber, 'down')
+  const controllers = new Controllers(mqttClient, topic, 'down')
+  controllers.init(extractSocketId, portNumber)
 
   const server = net.createServer({allowHalfOpen: true}, socket =>
     controllers.connect(socket))
 
-  server.listen(portNumber, '127.0.0.1',
-    () => info(`Listening on ${portNumber} to forward to mqtt topics`))
+  await new Promise(res =>
+    server.listen(portNumber, '127.0.0.1', () => {
+      info(`Listening on ${portNumber} to forward to mqtt topics`)
+      res()
+    }))
 
   return () => {
     server.close()

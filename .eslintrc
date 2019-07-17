@@ -7,7 +7,7 @@
   "rules": {
     "complexity": ['error', 4],
     "no-unused-vars": ["error", { "ignoreRestSiblings": true }],
-    "filenames/match-regex": [2, "^[a-z-_]+$", true]
+    "filenames/match-regex": [2, "^[a-z0-9-_]+$", true]
   },
   "extends": ["eslint-config-stickler"]
 }

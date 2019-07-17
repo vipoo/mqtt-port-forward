@@ -16,29 +16,21 @@ class Controllers extends PacketController {
     socket.dataTopic = `${this.topic}/tunnel/down/${socketId}`
     this.manageSocketEvents(socket)
 
-    info(`${socketId}: Establishing connection to local port ${portNumber}`)
+    info(`${socketId}: out Establishing connection to local port ${portNumber}`)
     socket.connect(portNumber, '127.0.0.1')
   }
 }
 
-let timeoutHandle
-function rescheuleTimeoutMonitor(controllers, timeoutPeriod) {
-  clearTimeout(timeoutHandle)
-  timeoutHandle = setTimeout(() => {
-    info('Timeout due to no mqtt packets received.  Terminating all socket connections')
-    controllers.reset()
-  }, timeoutPeriod)
-}
-
-const twoMinutes = 120000
-export function forwardMqttToLocalPort(mqttClient, portNumber, topic, timeoutPeriod = twoMinutes) {
+export async function forwardMqttToLocalPort(mqttClient, portNumber, topic) {
   const socketIdPattern = new RegExp(`^${topic}/tunnel/up/(.*)$`)
   const extractSocketId = str => socketIdPattern.exec(str)[1]
 
-  const controllers = new Controllers(mqttClient, topic)
-  controllers.init(extractSocketId, portNumber, 'up')
+  const controllers = new Controllers(mqttClient, topic, 'up')
+  controllers.init(extractSocketId, portNumber)
 
-  mqttClient.on('packetreceive', ({cmd}) => cmd === 'publish' ? rescheuleTimeoutMonitor(controllers, timeoutPeriod) : null)
-
-  mqttClient.on('connect', () => info(`Listening on mqtt topics ${topic}/tunnel/* to forward to port ${portNumber}`))
+  return await new Promise(res =>
+    mqttClient.on('connect', () => {
+      info(`Listening on mqtt topics ${topic}/tunnel/* to forward to port ${portNumber}`)
+      res()
+    }))
 }

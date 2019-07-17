@@ -5,7 +5,6 @@ import net from 'net'
 import {PacketCodes, applyHeader} from '../src/lib/buffer-management'
 import * as idGeneratorModule from '../src/lib/id-generator'
 
-const resetPacket = Buffer.from([0, 0, 0, PacketCodes.Reset, 0, 0, 0, 0])
 const connectPacket = Buffer.from([0, 0, 0, PacketCodes.Connect, 0, 0, 0, 1])
 
 const dataPacket = (content, number) => applyHeader(Buffer.from(content), PacketCodes.Data, number)
@@ -20,13 +19,10 @@ when('forwardLocalPortToMqtt is invoked', () => {
     mqttClient = new EventEmitter()
     mqttClient.subscribe = sinon.stub()
     mqttClient.publish = sinon.stub()
-    stopServer = forwardLocalPortToMqtt(mqttClient, 14567, 'testtopic')
+    stopServer = await forwardLocalPortToMqtt(mqttClient, 14567, 'testtopic')
   })
 
   afterEach(() => stopServer())
-
-  then('a reset signal is sent to the mqtt topic', () =>
-    expect(mqttClient.publish).to.have.been.calledWith('testtopic/tunnel/up/0', resetPacket))
 
   when('a service connects, writes and closes', () => {
     beforeEach(() => {
