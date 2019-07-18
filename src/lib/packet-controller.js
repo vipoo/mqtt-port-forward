@@ -8,6 +8,18 @@ const info = _debug('mqtt:pf:info')
 const mqttTimeout = 60000 * 2 // Period to close socket if no mqtt packets received
 const resentPeriod = 1000 // Period to wait to resent unacknowledged
 
+function removeSocket(openedSockets, socket) {
+  socket.end()
+  socket.destroy()
+  clearTimeout(socket.timeoutHandler)
+
+  openedSockets.delete(socket.id)
+
+  if (socket.packetsWaitingAck)
+    for (const x of socket.packetsWaitingAck.values())
+      clearTimeout(x)
+}
+
 export class PacketController {
   constructor(mqttClient, topic, direction) {
     this.openedSockets = new Map()
@@ -21,8 +33,9 @@ export class PacketController {
       const socketId = extractSocketId(incomingTopic)
       const {data, code, packetNumber} = extractHeader(buffer)
       if (code !== PacketCodes.Ack)
-        this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
-          applyHeader(Buffer.alloc(0), PacketCodes.Ack, packetNumber), {qos: 1})
+        if (code === PacketCodes.Connect || this.openedSockets.has(socketId))
+          this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
+            applyHeader(Buffer.alloc(0), PacketCodes.Ack, packetNumber), {qos: 1})
 
       this[code](socketId, data, packetNumber, portNumber)
     })
@@ -39,9 +52,7 @@ export class PacketController {
     clearTimeout(socket.timeoutHandler)
     socket.timeoutHandler = setTimeout(() => {
       debug(`${this.direction}: Socket closed due to no mqtt traffic recieved`)
-      socket.end()
-      socket.destroy()
-      this.openedSockets.delete(socketId)
+      removeSocket(this.openedSockets, socket)
     }, mqttTimeout)
     return socket
   }
@@ -50,16 +61,28 @@ export class PacketController {
     const packetNumber = socket.nextPacketNumber++
     const dataWithHeader = applyHeader(data, code, packetNumber)
     const writeToMqtt = () => {
+      if (!this.openedSockets.has(socket.id))
+        throw new Error(`This socket is gone ${socket.id} for ${packetNumber}`)
+
       debug(`${this.direction} ${socket.id}: Sending data ${packetNumber}, code: ${code} to topic ${socket.dataTopic}`)
       this.mqttClient.publish(socket.dataTopic, dataWithHeader, {qos: 1})
+      const handle = setTimeout(writeToMqtt, resentPeriod)
+      socket.packetsWaitingAck.set(packetNumber, handle)
     }
-
-    writeToMqtt()
-    const handle = setTimeout(writeToMqtt, resentPeriod)
 
     if (!socket.packetsWaitingAck)
       socket.packetsWaitingAck = new Map()
-    socket.packetsWaitingAck.set(packetNumber, handle)
+
+    if (socket.packetsWaitingAck.size >= 4)
+      socket.pause()
+
+    retryUntil(() => socket.packetsWaitingAck.size < 4, mqttTimeout)
+      .then(r => {
+        if (r && this.openedSockets.has(socket.id)) {
+          socket.resume()
+          writeToMqtt()
+        }
+      }, )
 
     return packetNumber
   }
@@ -92,24 +115,18 @@ export class PacketController {
       this.publishToMqtt(socket, PacketCodes.End)
       info(`${this.direction} ${socket.id}: session ended.`)
       debug(`${this.direction} ${socket.id}: received end signal.  Forwarding to mqtt.`)
-      this.openedSockets.delete(socket.id)
-      clearTimeout(socket.timeoutHandler)
     })
 
     socket.on('close', () => {
       this.publishToMqtt(socket, PacketCodes.Close)
       debug(`${this.direction} ${socket.id}: received close signal.  Forwarding to mqtt.`)
-      this.openedSockets.delete(socket.id)
-      clearTimeout(socket.timeoutHandler)
     })
   }
 
   reset() {
     debug(`${this.direction} Closing all sockets`)
-    for (const s of this.openedSockets.values()) {
-      s.end()
-      s.destroy()
-    }
+    for (const s of [...this.openedSockets.values()])
+      removeSocket(this.openedSockets, s)
 
     this.openedSockets.clear()
   }
@@ -118,9 +135,7 @@ export class PacketController {
     this.rescheudleSocketTimeout(socketId)
     this.syncPackets(socketId, packetNumber, socket => {
       debug(`${this.direction} ${socketId}: socket end`)
-      socket.end()
-      this.openedSockets.delete(socketId)
-      clearTimeout(socket.timeoutHandler)
+      removeSocket(this.openedSockets, socket)
     })
   }
 
@@ -129,9 +144,7 @@ export class PacketController {
     this.syncPackets(socketId, packetNumber, socket => {
       debug(`${this.direction} ${socketId}: socket close`)
       info(`${this.direction} ${socket.id}: session ended.`)
-      socket.destroy()
-      this.openedSockets.delete(socketId)
-      clearTimeout(socket.timeoutHandler)
+      removeSocket(this.openedSockets, socket)
     })
   }
 

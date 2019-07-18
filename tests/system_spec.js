@@ -11,6 +11,8 @@ describe('forward a socket connection over an authorised mqtt tropic', () => {
   let echoServer
   let clientSocket
   let capturedData = ''
+  let inService
+  let outService
 
   before.withTimeout(30000)(async () => {
     if (process.env.DEBUG)
@@ -25,20 +27,21 @@ describe('forward a socket connection over an authorised mqtt tropic', () => {
     echoServer = await createEchoServer(9898)
     clientSocket = createClientSocket(d => capturedData += d)
 
-    forwardMqttToLocalPort(awsAccess.clientOut, 9898, topicName)
+    outService = forwardMqttToLocalPort(awsAccess.clientOut, 9898, topicName)
     inService = forwardLocalPortToMqtt(awsAccess.clientIn, 3456, topicName)
   })
 
   after.withTimeout(30000)(async () => {
     if (inService)
-      inService.then(end => end())
+      await inService.then(end => end())
+
+    if (outService)
+      await outService.then(end => end())
 
     awsAccess.end()
     echoServer.end()
     clientSocket.end()
   })
-
-  let inService
 
   it('establishes a port forward over mqtt', async function() {
     this.timeout(10000)

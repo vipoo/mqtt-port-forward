@@ -14,7 +14,7 @@ class Controllers extends PacketController {
     this.openedSockets.set(socketId, socket)
 
     socket.dataTopic = `${this.topic}/tunnel/down/${socketId}`
-    this.manageSocketEvents(socket)
+    this.manageSocketEvents(socket, socketId)
 
     info(`${socketId}: out Establishing connection to local port ${portNumber}`)
     socket.connect(portNumber, '127.0.0.1')
@@ -28,9 +28,11 @@ export async function forwardMqttToLocalPort(mqttClient, portNumber, topic) {
   const controllers = new Controllers(mqttClient, topic, 'up')
   controllers.init(extractSocketId, portNumber)
 
-  return await new Promise(res =>
+  await new Promise(res =>
     mqttClient.on('connect', () => {
       info(`Listening on mqtt topics ${topic}/tunnel/* to forward to port ${portNumber}`)
       res()
     }))
+
+  return () => controllers.reset()
 }

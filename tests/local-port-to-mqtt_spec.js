@@ -42,7 +42,7 @@ when('forwardLocalPortToMqtt is invoked', () => {
         expect(mqttClient.publish).to.have.been
           .calledWith('testtopic/tunnel/up/1', dataPacket('some data', 2), {qos: 1})))
 
-    it('the end signal is sent to mqtt topic', () =>
+    then('the end signal is sent to mqtt topic', () =>
       eventually(() =>
         expect(mqttClient.publish).to.have.been
           .calledWith('testtopic/tunnel/up/1', endPacket(3), {qos: 1})))

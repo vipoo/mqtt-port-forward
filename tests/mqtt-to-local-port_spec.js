@@ -21,6 +21,7 @@ when('forwardMqttToLocalPort is invoked', () => {
   let socketCreated
   let data
   let clock
+  let service
 
   beforeEach(async () => {
     data = Buffer.alloc(0)
@@ -35,9 +36,9 @@ when('forwardMqttToLocalPort is invoked', () => {
 
     clock = sinon.useFakeTimers()
 
-    const p = forwardMqttToLocalPort(mqttClient, 14567, 'testtopic')
+    service = forwardMqttToLocalPort(mqttClient, 14567, 'testtopic')
     mqttClient.emit('connect')
-    await p
+    await service
 
     server = net.createServer({allowHalfOpen: true}, socket => {
       socketCreated()
@@ -54,6 +55,7 @@ when('forwardMqttToLocalPort is invoked', () => {
     clock.restore()
     server.close()
     capturedSockets.forEach(s => s.destroy())
+    return service.then(end => end())
   })
 
   when('mqtt topic receives a connection message', () => {
@@ -83,7 +85,7 @@ when('forwardMqttToLocalPort is invoked', () => {
       when('no ack is recieved after some time', () => {
         then('the packet is resent', () => {
           expect(mqttClient.publish.getCall(1).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
-          clock.tick(5000)
+          clock.tick(1100)
           expect(mqttClient.publish.getCall(2).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
           expect(mqttClient.publish).to.be.calledThrice
         })
