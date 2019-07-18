@@ -1,9 +1,10 @@
-import AWS, {region} from './aws'
+import {AWSP} from './aws'
 import assumeRolePolicyDocument from './assume-role-policy-document'
 
-const Iot = new AWS.Iot()
-const Iam = new AWS.IAM()
-const sts = new AWS.STS()
+const region = process.env.AWS_REGION || 'ap-southeast-2'
+const Iot = new AWSP('Iot', {region, apiVersion: '2015-05-28'})
+const Iam = new AWSP('IAM', {region, apiVersion: '2010-05-08'})
+const sts = new AWSP('STS', {region, apiVersion: '2011-06-15'})
 
 const reg = /cert\/(.*)/
 const fromArnToId = certificateArn => reg.exec(certificateArn)[1]

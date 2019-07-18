@@ -15,11 +15,7 @@ describe('forward a socket connection over an authorised mqtt tropic', () => {
   let outService
 
   before.withTimeout(30000)(async () => {
-    if (process.env.DEBUG)
-      for (const d of process.env.DEBUG.split(','))
-        debug.enable(d)
-
-    debug.enable('mqtt:pf:info')
+    debug.enable(`${process.env.DEBUG},mqtt:pf:info`)
 
     capturedData = ''
     awsAccess = await recreateAwsAccess(topicName)
