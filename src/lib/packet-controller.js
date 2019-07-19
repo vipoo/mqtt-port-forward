@@ -7,6 +7,7 @@ const info = _debug('mqtt:pf:info')
 
 const mqttTimeout = 60000 * 2 // Period to close socket if no mqtt packets received
 const resentPeriod = 1000 // Period to wait to resent unacknowledged
+const backlogCount = 4 // Maximum number of packets to allow resending...
 
 function removeSocket(openedSockets, socket) {
   socket.end()
@@ -31,7 +32,10 @@ function tryExtractSocketId(fn, incomingTopic) {
 function requiresAck(code, openedSockets, socketId) {
   return (code !== PacketCodes.Ack) &&
   (code === PacketCodes.Connect || openedSockets.has(socketId))
+}
 
+function requiresTerminate(code, openedSockets, socketId, packetNumber) {
+  return code !== PacketCodes.Ack && code !== PacketCodes.Connect && !openedSockets.has(socketId) && packetNumber > backlogCount
 }
 
 export class PacketController {
@@ -49,9 +53,15 @@ export class PacketController {
         return
 
       const {data, code, packetNumber} = extractHeader(buffer)
+
       if (requiresAck(code, this.openedSockets, socketId))
         this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
           applyHeader(Buffer.alloc(0), PacketCodes.Ack, packetNumber), {qos: 1})
+      else if (requiresTerminate(code, this.openedSockets, socketId, packetNumber)) {
+        this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
+          applyHeader(Buffer.alloc(0), PacketCodes.Terminate, 0), {qos: 1})
+        return
+      }
 
       this[code](socketId, data, packetNumber, portNumber)
     })
@@ -89,7 +99,7 @@ export class PacketController {
     if (!socket.packetsWaitingAck)
       socket.packetsWaitingAck = new Map()
 
-    if (socket.packetsWaitingAck.size >= 4)
+    if (socket.packetsWaitingAck.size >= backlogCount)
       socket.pause()
 
     retryUntil(() => socket.packetsWaitingAck.size < 4, mqttTimeout)
@@ -162,6 +172,15 @@ export class PacketController {
       info(`${this.direction} ${socket.id}: session ended.`)
       removeSocket(this.openedSockets, socket)
     })
+  }
+
+  [PacketCodes.Terminate](socketId) {
+    const socket = this.openedSockets.get(socketId)
+    if (!socket)
+      return
+
+    debug(`${this.direction} ${socketId}: socket terminated`)
+    removeSocket(this.openedSockets, this.openedSockets.get(socketId))
   }
 
   [PacketCodes.Data](socketId, data, packetNumber) {

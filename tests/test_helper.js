@@ -58,7 +58,7 @@ chai.Assertion.addProperty('pending', async function() {
     return new chai.Assertion(state).to.eq('pending')
 })
 
-export async function eventually(fn, timeout = 3000) {
+export async function eventually(fn, timeout = 1800) {
   let lastError = null
   let timedOut = false
   const timer = _setTimeout(() => timedOut = true, timeout)

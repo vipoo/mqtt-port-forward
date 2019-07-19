@@ -10,6 +10,7 @@ const dataPacket = (content, number) => applyHeader(Buffer.from(content), Packet
 const endPacket = number => applyHeader(Buffer.alloc(0), PacketCodes.End, number)
 const closePacket = number => applyHeader(Buffer.alloc(0), PacketCodes.Close, number)
 const ackPacket = number => applyHeader(Buffer.alloc(0), PacketCodes.Ack, number)
+const terminatePacket = number => applyHeader(Buffer.alloc(0), PacketCodes.Terminate, number)
 
 when('forwardMqttToLocalPort is invoked', () => {
   let onSocketData
@@ -56,6 +57,51 @@ when('forwardMqttToLocalPort is invoked', () => {
     server.close()
     capturedSockets.forEach(s => s.destroy())
     return service.then(end => end())
+  })
+
+  when('mqtt receives connect, data, end, and close message', () => {
+    beforeEach(() => {
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', connectPacket)
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah', 2))
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', endPacket(3))
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', closePacket(4))
+    })
+
+    it('forwards connection to socket', async () => {
+      await eventually(() => expect(socketCreated).to.have.been.calledOnce)
+      await eventually(() => {
+        clock.tick(5000)
+        expect(data.toString()).to.eq('blah')
+      })
+      await eventually(() => expect(onSocketEnd).to.have.been.calledOnce)
+    })
+  })
+
+  when('mqtt receives connect after data message', () => {
+    beforeEach(() => {
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah', 2))
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', connectPacket)
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', endPacket(3))
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', closePacket(4))
+    })
+
+    it('forwards connection to socket', async () => {
+      await eventually(() => expect(socketCreated).to.have.been.calledOnce)
+      await eventually(() => {
+        clock.tick(5000)
+        expect(data.toString()).to.eq('blah')
+      })
+      await eventually(() => expect(onSocketEnd).to.have.been.calledOnce)
+    })
+  })
+
+  when('mqtt receives a data message when no active connection', () => {
+    beforeEach(() => {
+      mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah', 5))
+    })
+
+    then('a terminate message is returned', () =>
+      eventually(() => expect(mqttClient.publish).to.have.been.calledWith('testtopic/tunnel/down/1', terminatePacket(0))))
   })
 
   when('mqtt topic receives a connection message', () => {
@@ -131,6 +177,13 @@ when('forwardMqttToLocalPort is invoked', () => {
           clock.tick(120000)
           return eventually(() => expect(onSocketEnd).to.have.been.calledOnce)
         })
+      })
+
+      when('mqtt topic receives a terminate single', () => {
+        beforeEach(() => mqttClient.emit('message', 'testtopic/tunnel/up/1', terminatePacket(999)))
+
+        then('the local socket is closed', () =>
+          eventually(() => expect(onSocketEnd).to.have.been.calledOnce))
       })
 
       when('mqtt topic receives an end signal', () => {

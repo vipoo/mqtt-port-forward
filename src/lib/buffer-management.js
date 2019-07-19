@@ -4,8 +4,8 @@ export const PacketCodes = Object.freeze({
   Data: 2,
   End: 3,
   Close: 4,
-  //Reset: 5,
-  Ack: 5
+  Ack: 5,
+  Terminate: -1
 })
 
 export function applyHeader(buffer, code, packetNumber) {
