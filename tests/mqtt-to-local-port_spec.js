@@ -92,6 +92,18 @@ when('forwardMqttToLocalPort is invoked', () => {
       })
     })
 
+    when('mqtt message is received that is not a tunnel pattern', () => {
+      beforeEach(() => {
+        mqttClient.emit('message', 'testtopic/some-message', dataPacket('blah-2', 2))
+      })
+
+      then('the data is sent to socket in correct order', () =>
+        eventually(() => {
+          clock.tick(5000)
+          expect(data.toString()).to.eq('')
+        }))
+    })
+
     when('data is received out of order', () => {
       beforeEach(() => {
         mqttClient.emit('message', 'testtopic/tunnel/up/1', dataPacket('blah-3', 3))

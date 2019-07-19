@@ -20,6 +20,20 @@ function removeSocket(openedSockets, socket) {
       clearTimeout(x)
 }
 
+function tryExtractSocketId(fn, incomingTopic) {
+  try {
+    return fn(incomingTopic)
+  } catch {
+    /* ignore the error */
+  }
+}
+
+function requiresAck(code, openedSockets, socketId) {
+  return (code !== PacketCodes.Ack) &&
+  (code === PacketCodes.Connect || openedSockets.has(socketId))
+
+}
+
 export class PacketController {
   constructor(mqttClient, topic, direction) {
     this.openedSockets = new Map()
@@ -30,12 +44,14 @@ export class PacketController {
 
   init(extractSocketId, portNumber) {
     this.mqttClient.on('message', (incomingTopic, buffer) => {
-      const socketId = extractSocketId(incomingTopic)
+      const socketId = tryExtractSocketId(extractSocketId, incomingTopic)
+      if (socketId === undefined)
+        return
+
       const {data, code, packetNumber} = extractHeader(buffer)
-      if (code !== PacketCodes.Ack)
-        if (code === PacketCodes.Connect || this.openedSockets.has(socketId))
-          this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
-            applyHeader(Buffer.alloc(0), PacketCodes.Ack, packetNumber), {qos: 1})
+      if (requiresAck(code, this.openedSockets, socketId))
+        this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
+          applyHeader(Buffer.alloc(0), PacketCodes.Ack, packetNumber), {qos: 1})
 
       this[code](socketId, data, packetNumber, portNumber)
     })
