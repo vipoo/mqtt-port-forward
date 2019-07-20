@@ -1,10 +1,11 @@
-import {AWSP} from './aws'
+import AWS from 'aws-sdk'
+import awsAsPromise from 'aws-sdk-as-promise'
 import assumeRolePolicyDocument from './assume-role-policy-document'
 
 const region = process.env.AWS_REGION || 'ap-southeast-2'
-const Iot = new AWSP('Iot', {region, apiVersion: '2015-05-28'})
-const Iam = new AWSP('IAM', {region, apiVersion: '2010-05-08'})
-const sts = new AWSP('STS', {region, apiVersion: '2011-06-15'})
+const Iot = awsAsPromise(new AWS.Iot({region, apiVersion: '2015-05-28'}))
+const Iam = awsAsPromise(new AWS.IAM({region, apiVersion: '2010-05-08'}))
+const sts = awsAsPromise(new AWS.STS({region, apiVersion: '2011-06-15'}))
 
 const reg = /cert\/(.*)/
 const fromArnToId = certificateArn => reg.exec(certificateArn)[1]

@@ -2,10 +2,11 @@ import {AwsIotAccess} from '../src/lib/aws-iot-access'
 import {createMqttClient} from '../src/lib/mqtt'
 import ca from '../src/lib/amazon-root-ca1-pem'
 import net from 'net'
-import {AWSP} from '../src/lib/aws'
+import awsAsPromise from 'aws-sdk-as-promise'
+import AWS from 'aws-sdk'
 
 const region = process.env.AWS_REGION || 'ap-southeast-2'
-const Iot = new AWSP('Iot', {apiVersion: '2015-05-28', region})
+const Iot = awsAsPromise(new AWS.Iot({apiVersion: '2015-05-28', region}))
 
 let getAwsIotEndPoint = async () => {
   const result = await Iot.describeEndpoint({endpointType: 'iot:Data-ATS'})
