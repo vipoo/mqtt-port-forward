@@ -25,6 +25,8 @@ describe('forward a socket connection over an authorised mqtt tropic', () => {
 
     outService = forwardMqttToLocalPort(awsAccess.clientOut, 9898, topicName)
     inService = forwardLocalPortToMqtt(awsAccess.clientIn, 3456, topicName)
+
+    await Promise.all([inService, outService])
   })
 
   after.withTimeout(30000)(async () => {

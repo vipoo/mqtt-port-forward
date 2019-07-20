@@ -13,6 +13,7 @@ export const given = (d, fn) => context(`given ${d}`, fn)
 export const when = (d, fn) => context(`when ${d}`, fn)
 export const then = (d, fn) => it(`then ${d}`, fn)
 
+when.only = context.only // eslint-disable-line
 then.only = it.only // eslint-disable-line
 
 afterEach(() => sinon.restore())

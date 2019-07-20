@@ -32,8 +32,8 @@ when('forwardMqttToLocalPort is invoked', () => {
     onSocketClose = sinon.stub()
     socketCreated = sinon.stub()
     mqttClient = new EventEmitter()
-    mqttClient.subscribe = sinon.stub()
-    mqttClient.publish = sinon.stub()
+    mqttClient.subscribe = sinon.stub().callsFake((a, b, c) => c())
+    mqttClient.publish = sinon.stub().callsFake((a, b, c) => c())
 
     clock = sinon.useFakeTimers()
 
@@ -122,7 +122,7 @@ when('forwardMqttToLocalPort is invoked', () => {
         beforeEach(() => mqttClient.emit('message', 'testtopic/tunnel/up/1', ackPacket(1)))
 
         then('the packet is not resent', () => {
-          expect(mqttClient.publish.getCall(1).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+          expect(mqttClient.publish.getCall(1).args.slice(0, 3)).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
           clock.tick(5000)
           expect(mqttClient.publish).to.be.calledTwice
         })
@@ -130,9 +130,9 @@ when('forwardMqttToLocalPort is invoked', () => {
 
       when('no ack is recieved after some time', () => {
         then('the packet is resent', () => {
-          expect(mqttClient.publish.getCall(1).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+          expect(mqttClient.publish.getCall(1).args.slice(0, 3)).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
           clock.tick(1100)
-          expect(mqttClient.publish.getCall(2).args).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
+          expect(mqttClient.publish.getCall(2).args.slice(0, 3)).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
           expect(mqttClient.publish).to.be.calledThrice
         })
       })

@@ -26,13 +26,12 @@ export async function forwardMqttToLocalPort(mqttClient, portNumber, topic) {
   const extractSocketId = str => socketIdPattern.exec(str)[1]
 
   const controllers = new Controllers(mqttClient, topic, 'up')
-  controllers.init(extractSocketId, portNumber)
+  await controllers.init(extractSocketId, portNumber)
 
-  await new Promise(res =>
+  new Promise(res =>
     mqttClient.on('connect', () => {
       info(`Listening on mqtt topics ${topic}/tunnel/* to forward to port ${portNumber}`)
       res()
     }))
-
   return () => controllers.reset()
 }

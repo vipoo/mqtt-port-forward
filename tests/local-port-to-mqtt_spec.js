@@ -17,7 +17,7 @@ when('forwardLocalPortToMqtt is invoked', () => {
   beforeEach(async () => {
     sinon.stub(idGeneratorModule, 'generateId').returns(1)
     mqttClient = new EventEmitter()
-    mqttClient.subscribe = sinon.stub()
+    mqttClient.subscribe = sinon.stub().callsFake((a, b, c) => c())
     mqttClient.publish = sinon.stub()
     stopServer = await forwardLocalPortToMqtt(mqttClient, 14567, 'testtopic')
   })

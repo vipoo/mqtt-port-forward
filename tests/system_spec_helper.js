@@ -1,9 +1,10 @@
-import {AwsIotAccess} from '../src/lib/aws-iot-access'
-import {createMqttClient} from '../src/lib/mqtt'
-import ca from '../src/lib/amazon-root-ca1-pem'
+import {AwsIotAccess} from './support/aws-iot-access'
+import ca from './support/amazon-root-ca1-pem'
 import net from 'net'
 import awsAsPromise from 'aws-sdk-as-promise'
 import AWS from 'aws-sdk'
+import {createTlsMqttClient} from 'mqtt-extras/tls'
+import {mqttClientWithDebug} from 'mqtt-extras/with-debug'
 
 const region = process.env.AWS_REGION || 'ap-southeast-2'
 const Iot = awsAsPromise(new AWS.Iot({apiVersion: '2015-05-28', region}))
@@ -13,6 +14,10 @@ let getAwsIotEndPoint = async () => {
   const endpoint = result.endpointAddress
   getAwsIotEndPoint = () => endpoint
   return endpoint
+}
+
+async function createMqttClient(options) {
+  return mqttClientWithDebug(await createTlsMqttClient(options))
 }
 
 export async function recreateAwsAccess(topicName) {

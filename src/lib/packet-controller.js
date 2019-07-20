@@ -1,6 +1,7 @@
 import _debug from 'debug'
 import {PacketCodes, extractHeader, applyHeader} from './buffer-management'
 import {retryUntil} from './promise_helpers'
+import {mqttClientAsPromise} from 'mqtt-extras/as-promise'
 
 const debug = _debug('mqtt:pf')
 const info = _debug('mqtt:pf:info')
@@ -41,12 +42,12 @@ function requiresTerminate(code, openedSockets, socketId, packetNumber) {
 export class PacketController {
   constructor(mqttClient, topic, direction) {
     this.openedSockets = new Map()
-    this.mqttClient = mqttClient
+    this.mqttClient = mqttClientAsPromise(mqttClient)
     this.topic = topic
     this.direction = direction
   }
 
-  init(extractSocketId, portNumber) {
+  async init(extractSocketId, portNumber) {
     this.mqttClient.on('message', (incomingTopic, buffer) => {
       const socketId = tryExtractSocketId(extractSocketId, incomingTopic)
       if (socketId === undefined)
@@ -57,9 +58,11 @@ export class PacketController {
       if (requiresAck(code, this.openedSockets, socketId))
         this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
           applyHeader(Buffer.alloc(0), PacketCodes.Ack, packetNumber), {qos: 1})
+          .catch(err => debug(`${this.direction} ${socketId}: ${err.message}`))
       else if (requiresTerminate(code, this.openedSockets, socketId, packetNumber)) {
         this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
           applyHeader(Buffer.alloc(0), PacketCodes.Terminate, 0), {qos: 1})
+          .catch(err => debug(`${this.direction} ${socketId}: ${err.message}`))
         return
       }
 
@@ -68,7 +71,7 @@ export class PacketController {
 
     const invertDirection = this.direction === 'down' ? 'up' : 'down'
     debug(`${this.direction}: subscribing to ${this.topic}/tunnel/${this.direction}/+`)
-    this.mqttClient.subscribe(`${this.topic}/tunnel/${this.direction}/+`, {qos: 1})
+    await this.mqttClient.subscribe(`${this.topic}/tunnel/${this.direction}/+`, {qos: 1})
   }
 
   rescheudleSocketTimeout(socketId) {
@@ -91,7 +94,7 @@ export class PacketController {
         throw new Error(`This socket is gone ${socket.id} for ${packetNumber}`)
 
       debug(`${this.direction} ${socket.id}: Sending data ${packetNumber}, code: ${code} to topic ${socket.dataTopic}`)
-      this.mqttClient.publish(socket.dataTopic, dataWithHeader, {qos: 1})
+      this.mqttClient.publish(socket.dataTopic, dataWithHeader, {qos: 1}).catch(err => debug(`${this.direction} ${socket.id} ${err.message}`))
       const handle = setTimeout(writeToMqtt, resentPeriod)
       socket.packetsWaitingAck.set(packetNumber, handle)
     }

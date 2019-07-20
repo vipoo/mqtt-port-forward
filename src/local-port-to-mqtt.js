@@ -29,7 +29,7 @@ export async function forwardLocalPortToMqtt(mqttClient, portNumber, topic) {
   const extractSocketId = str => socketIdPattern.exec(str)[1]
 
   const controllers = new Controllers(mqttClient, topic, 'down')
-  controllers.init(extractSocketId, portNumber)
+  await controllers.init(extractSocketId, portNumber)
 
   const server = net.createServer({allowHalfOpen: true}, socket =>
     controllers.connect(socket))
