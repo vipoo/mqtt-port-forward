@@ -51,7 +51,7 @@
     "@babel/preset-env": "^7.4.4",
     "@babel/register": "^7.4.4",
     "aws-sdk": "^2.493.0",
-    "aws-sdk-as-promise": "file:../aws-sdk-as-promise/aws-sdk-as-promise-0.0.1.tgz",
+    "aws-sdk-as-promise": "0.0.1",
     "babel-eslint": "^11.0.0-beta.0",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
