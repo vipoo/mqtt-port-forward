@@ -70,7 +70,7 @@ export class PacketController {
     })
 
     const invertDirection = this.direction === 'down' ? 'up' : 'down'
-    debug(`${this.direction}: subscribing to ${this.topic}/tunnel/${this.direction}/+`)
+    info(`${this.direction}: subscribing to ${this.topic}/tunnel/${this.direction}/+`)
     await this.mqttClient.subscribe(`${this.topic}/tunnel/${this.direction}/+`, {qos: 1})
   }
 
