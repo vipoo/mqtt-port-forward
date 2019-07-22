@@ -2,6 +2,7 @@ import _debug from 'debug'
 import {PacketCodes, extractHeader, applyHeader} from './buffer-management'
 import {retryUntil} from './promise_helpers'
 import {mqttClientAsPromise} from 'mqtt-extras/as-promise'
+import {fromStream, map, filter, forEach, tap} from 'async_iter/pipeline'
 
 const debug = _debug('mqtt:pf')
 const info = _debug('mqtt:pf:info')
@@ -22,21 +23,35 @@ function removeSocket(openedSockets, socket) {
       clearTimeout(x)
 }
 
-function tryExtractSocketId(fn, incomingTopic) {
-  try {
-    return fn(incomingTopic)
-  } catch {
-    /* ignore the error */
+function withSocketId(fn) {
+  return msg => {
+    try {
+      return {...msg, socketId: fn(msg.incomingTopic)}
+    } catch {
+      return msg
+      /* ignore the error */
+    }
   }
 }
 
-function requiresAck(code, openedSockets, socketId) {
-  return (code !== PacketCodes.Ack) &&
-  (code === PacketCodes.Connect || openedSockets.has(socketId))
+function withHeader() {
+  return msg => {
+    return {...msg, ...extractHeader(msg.buffer)}
+  }
 }
 
-function requiresTerminate(code, openedSockets, socketId, packetNumber) {
-  return code !== PacketCodes.Ack && code !== PacketCodes.Connect && !openedSockets.has(socketId) && packetNumber > backlogCount
+function withRequiresAck(openedSockets) {
+  return msg => {
+    const requiresAck = (msg.code !== PacketCodes.Ack) && (msg.code === PacketCodes.Connect || openedSockets.has(msg.socketId))
+    return {...msg, requiresAck}
+  }
+}
+
+function withRequiresTerminate(openedSockets) {
+  return msg => {
+    const requiresTerminate = msg.code !== PacketCodes.Ack && msg.code !== PacketCodes.Connect && !openedSockets.has(msg.socketId) && msg.packetNumber > backlogCount
+    return {...msg, requiresTerminate}
+  }
 }
 
 export class PacketController {
@@ -45,33 +60,36 @@ export class PacketController {
     this.mqttClient = mqttClientAsPromise(mqttClient)
     this.topic = topic
     this.direction = direction
+    this.invertDirection = direction === 'down' ? 'up' : 'down'
+  }
+
+  replyIfRequired() {
+    return ({requiresAck, requiresTerminate, socketId, packetNumber}) => {
+      const publish = (code, pn) => this.mqttClient.publish(`${this.topic}/tunnel/${this.invertDirection}/${socketId}`,
+        applyHeader(Buffer.alloc(0), code, pn), {qos: 1})
+        .catch(err => debug(`${this.direction} ${socketId}: ${err.message}`))
+
+      if (requiresAck)
+        publish(PacketCodes.Ack, packetNumber)
+      else if (requiresTerminate)
+        publish(PacketCodes.Terminate, 0)
+    }
   }
 
   async init(extractSocketId, portNumber) {
-    this.mqttClient.on('message', (incomingTopic, buffer) => {
-      const socketId = tryExtractSocketId(extractSocketId, incomingTopic)
-      if (socketId === undefined)
-        return
-
-      const {data, code, packetNumber} = extractHeader(buffer)
-
-      if (requiresAck(code, this.openedSockets, socketId))
-        this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
-          applyHeader(Buffer.alloc(0), PacketCodes.Ack, packetNumber), {qos: 1})
-          .catch(err => debug(`${this.direction} ${socketId}: ${err.message}`))
-      else if (requiresTerminate(code, this.openedSockets, socketId, packetNumber)) {
-        this.mqttClient.publish(`${this.topic}/tunnel/${invertDirection}/${socketId}`,
-          applyHeader(Buffer.alloc(0), PacketCodes.Terminate, 0), {qos: 1})
-          .catch(err => debug(`${this.direction} ${socketId}: ${err.message}`))
-        return
-      }
-
-      this[code](socketId, data, packetNumber, portNumber)
-    })
-
-    const invertDirection = this.direction === 'down' ? 'up' : 'down'
     info(`${this.direction}: subscribing to ${this.topic}/tunnel/${this.direction}/+`)
-    await this.mqttClient.subscribe(`${this.topic}/tunnel/${this.direction}/+`, {qos: 1})
+    await this.mqttClient.subscribe(`${this.topic}/tunnel/${this.direction}/+`, {qos: 1});
+
+    (await fromStream(this.mqttClient, 'message'))
+      |> map(([incomingTopic, buffer]) => ({incomingTopic, buffer}))
+      |> map(withSocketId(extractSocketId))
+      |> filter(msg => !!msg.socketId)
+      |> map(withHeader())
+      |> map(withRequiresAck(this.openedSockets))
+      |> map(withRequiresTerminate(this.openedSockets))
+      |> tap(this.replyIfRequired())
+      |> filter(msg => !msg.requiresTerminate)
+      |> forEach(msg => this[msg.code](msg.socketId, msg.data, msg.packetNumber, portNumber))
   }
 
   rescheudleSocketTimeout(socketId) {

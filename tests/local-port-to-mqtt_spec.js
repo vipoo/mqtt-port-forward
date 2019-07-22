@@ -22,7 +22,10 @@ when('forwardLocalPortToMqtt is invoked', () => {
     stopServer = await forwardLocalPortToMqtt(mqttClient, 14567, 'testtopic')
   })
 
-  afterEach(() => stopServer())
+  afterEach(() => {
+    mqttClient.emit('close')
+    stopServer()
+  })
 
   when('a service connects, writes and closes', () => {
     beforeEach(() => {

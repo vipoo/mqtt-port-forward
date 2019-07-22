@@ -24,7 +24,7 @@ when('forwardMqttToLocalPort is invoked', () => {
   let clock
   let service
 
-  beforeEach(async () => {
+  beforeEach(async function() {
     data = Buffer.alloc(0)
     capturedSockets = []
     onSocketData = sinon.stub()
@@ -33,13 +33,8 @@ when('forwardMqttToLocalPort is invoked', () => {
     socketCreated = sinon.stub()
     mqttClient = new EventEmitter()
     mqttClient.subscribe = sinon.stub().callsFake((a, b, c) => c())
-    mqttClient.publish = sinon.stub().callsFake((a, b, c) => c())
-
+    mqttClient.publish = sinon.stub().callsFake((a, b, c, d) => d())
     clock = sinon.useFakeTimers()
-
-    service = forwardMqttToLocalPort(mqttClient, 14567, 'testtopic')
-    mqttClient.emit('connect')
-    await service
 
     server = net.createServer({allowHalfOpen: true}, socket => {
       socketCreated()
@@ -49,7 +44,11 @@ when('forwardMqttToLocalPort is invoked', () => {
       socket.on('end', onSocketEnd)
       socket.on('close', onSocketClose)
     })
-    server.listen(14567, '127.0.0.1', () => {})
+    server.listen(14567, '127.0.0.1')
+
+    service = forwardMqttToLocalPort(mqttClient, 14567, 'testtopic')
+    mqttClient.emit('connect')
+    await service
   })
 
   afterEach(() => {
@@ -67,7 +66,7 @@ when('forwardMqttToLocalPort is invoked', () => {
       mqttClient.emit('message', 'testtopic/tunnel/up/1', closePacket(4))
     })
 
-    it('forwards connection to socket', async () => {
+    it('forwards connection to socket', async function() {
       await eventually(() => expect(socketCreated).to.have.been.calledOnce)
       await eventually(() => {
         clock.tick(5000)
@@ -119,11 +118,13 @@ when('forwardMqttToLocalPort is invoked', () => {
         eventually(() => expect(mqttClient.publish).to.have.been.calledWith('testtopic/tunnel/down/1', dataPacket('some - data', 1))))
 
       when('an ack is received', () => {
-        beforeEach(() => mqttClient.emit('message', 'testtopic/tunnel/up/1', ackPacket(1)))
+        beforeEach(() => {
+          mqttClient.emit('message', 'testtopic/tunnel/up/1', ackPacket(1))
+          clock.tick(999)
+        })
 
         then('the packet is not resent', () => {
           expect(mqttClient.publish.getCall(1).args.slice(0, 3)).to.be.deep.eq(['testtopic/tunnel/down/1', dataPacket('some - data', 1), {qos: 1}])
-          clock.tick(5000)
           expect(mqttClient.publish).to.be.calledTwice
         })
       })
